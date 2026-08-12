@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/${{ env.DESTINATION_REPO }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DEST_REPO_PAT }}
           path: destination
 
       - name: Sync source to destination
