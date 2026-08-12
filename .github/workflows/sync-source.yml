@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout source repo
@@ -30,16 +31,26 @@ jobs:
 
       - name: Sync source to destination
         run: |
+          BRANCH="sync-source-${GITHUB_SHA::7}"
+          cd destination
+          git checkout -B "$BRANCH"
           rsync -a --delete \
             --exclude='.git' \
             --exclude='.github' \
-            source/ destination/
-
-      - name: Commit and push changes to destination
-        working-directory: destination
-        run: |
+            ../source/ ./
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git diff --cached --quiet || git commit -m "sync: mirror source ${{ github.sha }}"
-          git push origin ${{ env.DESTINATION_BRANCH }}
+          if git diff --cached --quiet; then
+            echo "No changes to sync"
+            exit 0
+          fi
+          git commit -m "sync: mirror source ${{ github.sha }}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --repo "${{ github.repository_owner }}/${{ env.DESTINATION_REPO }}" \
+            --base "${{ env.DESTINATION_BRANCH }}" \
+            --head "$BRANCH" \
+            --title "Sync from source" \
+            --body "Automated sync from source repo" \
+            || echo "PR already exists or no changes"
