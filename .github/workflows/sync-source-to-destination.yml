@@ -1,0 +1,51 @@
+name: Sync source repo to destination
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DESTINATION_REPO: destination
+  DESTINATION_BRANCH: main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate app token for destination
+        id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.SYNC_APP_ID }}
+          private-key: ${{ secrets.SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ env.DESTINATION_REPO }}
+
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout destination repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/${{ env.DESTINATION_REPO }}
+          token: ${{ steps.token.outputs.token }}
+          path: destination
+
+      - name: Sync source to destination
+        run: |
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            source/ destination/
+
+      - name: Commit and push changes to destination
+        working-directory: destination
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --cached --quiet || git commit -m "sync: mirror from source ${{ github.sha }}"
+          git push origin ${{ env.DESTINATION_BRANCH }}
